@@ -17,6 +17,8 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 #include <esp_sleep.h>
+#include <Adafruit_MLX90614.h>
+#include <SPI.h>
 
 // Define UUIDs for service and characteristic
 // This is 128 bit identifier, you can generate one here: https://www.uuidgenerator.net
@@ -25,7 +27,6 @@
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
 #define INDICATOR_LED 2 // The indicator led that will be used to show state of advertising etc
-#define TEMP_SENSOR 15 // Pin connected to the LM35 sensor
 
 #define SLEEP_DURATION 15 // Sleep duration in seconds
 #define NUM_READINGS 10 // Number of temperature readings to average
@@ -34,6 +35,10 @@
 #define LM35_SCALE 0.01 // LM35 outputs 0.01 volts for each degree Celsius
 #define ADVERTISING_TIME 60 // Advertising iterations
 #define PROCESS_NOTIFICAION_TIME 1000 // Process notification time in milliseconds
+
+
+// setup the sensor
+Adafruit_MLX90614 mlx = Adafruit_MLX90614();
 
 // Declare pointers for characteristic and advertising objects
 BLECharacteristic *pCharacteristic;
@@ -57,7 +62,7 @@ class MyServerCallbacks: public BLEServerCallbacks {
 
 void setup() {
   // Set the pin modes for the relevant modes
-  pinMode(TEMP_SENSOR, INPUT);  // Set the GPIO pin as input
+  // pinMode(TEMP_SENSOR, INPUT);  // Set the GPIO pin as input
   pinMode(INDICATOR_LED, OUTPUT); // LED indicator pin state
 
   // Serial rate - helps with reading serial data
@@ -124,18 +129,18 @@ void setup() {
     Serial.println("Prepare getting averages...");
     // Read the temperature NUM_READINGS times
     for (int i = 0; i < NUM_READINGS; i++) {
-      // The analogRead function returns a digital value between 0 and ADC_RESOLUTION
-      int reading = analogRead(TEMP_SENSOR);
-      // Convert the reading back into a voltage
-      float voltage = reading * (V_REF / ADC_RESOLUTION);
-      // // Convert the voltage into a temperature
-      float temperature = voltage / LM35_SCALE;
-      total += temperature; // Add the temperature to the total
+      if (mlx.begin()) {
+        float reading = mlx.readObjectTempC();
+        if (reading) {
+          total += reading; // Add the temperature to the total
+        }
+      }
       delay(10);
     }
-
+    
     float average = total / NUM_READINGS; // Compute the average temperature
     String value = String(average);
+    
     
     // Send the average temperature
     pCharacteristic->setValue(value.c_str()); // converting into a c-style string (null terminated character array)
